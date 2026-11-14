@@ -2,22 +2,18 @@
 
 ## Introduction
 
-When looking at XSS (Cross-Site Scripting), there are three generally recognized forms of [XSS](https://owasp.org/www-community/attacks/xss/):
+Commonly discussed, overlapping categories of [XSS (Cross-Site Scripting)](https://owasp.org/www-community/attacks/xss/) include:
 
 - [Reflected or Stored](https://owasp.org/www-community/attacks/xss/#stored-and-reflected-xss-attacks)
 - [DOM Based XSS](https://owasp.org/www-community/attacks/DOM_Based_XSS).
 
-The [XSS Prevention Cheatsheet](Cross_Site_Scripting_Prevention_Cheat_Sheet.md) does an excellent job of addressing Reflected and Stored XSS. This cheatsheet addresses DOM (Document Object Model) based XSS and is an extension (and assumes comprehension of) the [XSS Prevention Cheatsheet](Cross_Site_Scripting_Prevention_Cheat_Sheet.md).
+The [XSS Prevention Cheatsheet](Cross_Site_Scripting_Prevention_Cheat_Sheet.md) does an excellent job of addressing Reflected and Stored XSS. This cheatsheet addresses DOM (Document Object Model) based XSS and is an extension (and assumes comprehension) of the [XSS Prevention Cheatsheet](Cross_Site_Scripting_Prevention_Cheat_Sheet.md).
 
-In order to understand DOM based XSS, one needs to see the fundamental difference between Reflected and Stored XSS when compared to DOM based XSS. The primary difference is where the attack is injected into the application.
+Stored and reflected describe how an attack payload reaches a victim; server-side and client-side describe where untrusted data is handled unsafely. [Both stored and reflected XSS can occur on the client or server](https://community.owasp.org/Types_of_Cross-Site_Scripting#types-of-cross-site-scripting), including stored and reflected DOM-based XSS.
 
-Reflected and Stored XSS are server side injection issues while DOM based XSS is a client (browser) side injection issue.
+For server-side XSS, the server inserts untrusted data into a response without making it safe for its output context. DOM-based XSS arises from unsafe client-side processing. In either case, the injected script executes in the browser; choose controls for the actual data flow and output context.
 
-All of this code originates on the server, which means it is the application owner's responsibility to make it safe from XSS, regardless of the type of XSS flaw it is. Also, XSS attacks always **execute** in the browser.
-
-The difference between Reflected/Stored XSS is where the attack is added or injected into the application. With Reflected/Stored the attack is injected into the application during server-side processing of requests where untrusted input is dynamically added to HTML. For DOM XSS, the attack is injected into the application during runtime in the client directly.
-
-When a browser is rendering HTML and any other associated content like CSS, JavaScript, etc. it identifies various rendering contexts for the different kinds of input and follows different rules for each context. A rendering context is associated with the parsing of HTML tags and their attributes.
+When a browser is rendering HTML and any other associated content like CSS or JavaScript, it identifies various rendering contexts for the different kinds of input and follows different rules for each context. A rendering context is associated with the parsing of HTML tags and their attributes.
 
 - The HTML parser of the rendering context dictates how data is presented and laid out on the page and can be further broken down into the standard contexts of HTML, HTML attribute, URL, and CSS.
 - The JavaScript or VBScript parser of an execution context is associated with the parsing and execution of script code. Each parser has distinct and separate semantics in the way they can possibly execute script code which make creating consistent rules for mitigating vulnerabilities in various contexts difficult. The complication is compounded by the differing meanings and treatment of encoded values within each subcontext (HTML, HTML attribute, URL, and CSS) within the execution context.
@@ -68,14 +64,14 @@ To make dynamic updates to HTML in the DOM safe, we recommend:
 
 ```javascript
  var ESAPI = require('node-esapi');
- element.innerHTML = "<%=ESAPI.encoder().encodeForJS(ESAPI.encoder().encodeForHTML(untrustedData))%>";
- element.outerHTML = "<%=ESAPI.encoder().encodeForJS(ESAPI.encoder().encodeForHTML(untrustedData))%>";
+ element.innerHTML = "<%=ESAPI.encoder().encodeForJavascript(ESAPI.encoder().encodeForHTML(untrustedData))%>";
+ element.outerHTML = "<%=ESAPI.encoder().encodeForJavascript(ESAPI.encoder().encodeForHTML(untrustedData))%>";
 ```
 
 ```javascript
  var ESAPI = require('node-esapi');
- document.write("<%=ESAPI.encoder().encodeForJS(ESAPI.encoder().encodeForHTML(untrustedData))%>");
- document.writeln("<%=ESAPI.encoder().encodeForJS(ESAPI.encoder().encodeForHTML(untrustedData))%>");
+ document.write("<%=ESAPI.encoder().encodeForJavascript(ESAPI.encoder().encodeForHTML(untrustedData))%>");
+ document.writeln("<%=ESAPI.encoder().encodeForJavascript(ESAPI.encoder().encodeForHTML(untrustedData))%>");
 ```
 
 ## RULE \#2 - JavaScript Escape Before Inserting Untrusted Data into HTML Attribute Subcontext within the Execution Context
@@ -94,7 +90,7 @@ For example, the general rule is to HTML Attribute encode untrusted data (data f
  x.setAttribute("name", "company_name");
  // In the following line of code, companyName represents untrusted user input
  // The ESAPI.encoder().encodeForHTMLAttribute() is unnecessary and causes double-encoding
- x.setAttribute("value", '<%=ESAPI.encoder().encodeForJS(ESAPI.encoder().encodeForHTMLAttribute(companyName))%>');
+ x.setAttribute("value", '<%=ESAPI.encoder().encodeForJavascript(ESAPI.encoder().encodeForHTMLAttribute(companyName))%>');
  var form1 = document.forms[0];
  form1.appendChild(x);
 ```
@@ -107,7 +103,7 @@ The problem is that if companyName had the value "Johnson & Johnson". What would
  var ESAPI = require('node-esapi');
  var x = document.createElement("input");
  x.setAttribute("name", "company_name");
- x.setAttribute("value", '<%=ESAPI.encoder().encodeForJS(companyName)%>');
+ x.setAttribute("value", '<%=ESAPI.encoder().encodeForJavascript(companyName)%>');
  var form1 = document.forms[0];
  form1.appendChild(x);
 ```
@@ -135,43 +131,28 @@ The `setAttribute(name_string,value_string)` method is dangerous because it impl
 
 In the case above, the attribute name is an JavaScript event handler, so the attribute value is implicitly converted to JavaScript code and evaluated. In the case above, JavaScript encoding does not mitigate against DOM based XSS.
 
-Other JavaScript methods which take code as a string types will have a similar problem as outline above (`setTimeout`, `setInterval`, new Function, etc.). This is in stark contrast to JavaScript encoding in the event handler attribute of a HTML tag (HTML parser) where JavaScript encoding mitigates against XSS.
+Other JavaScript methods that interpret strings as code, such as `setTimeout`, `setInterval`, and `Function`, have the same risk. HTML event-handler attributes also contain [JavaScript function bodies](https://html.spec.whatwg.org/multipage/webappapis.html#event-handler-content-attributes). Escaping every character in one payload may produce a syntax error, but JavaScript encoding is not a defense for this context: escaped identifiers remain executable when the surrounding syntax is valid.
 
 ```html
-<!-- Does NOT work  -->
-<a id="bb" href="#" onclick="\u0061\u006c\u0065\u0072\u0074\u0028\u0031\u0029"> Test Me</a>
+<!-- Executes alert(1) when clicked; encoding the identifier does not make it safe. -->
+<a id="bb" href="#" onclick="\u0061\u006c\u0065\u0072\u0074(1)">Test Me</a>
 ```
 
-An alternative to using `Element.setAttribute(...)` to set DOM attributes is to set the attribute directly. Directly setting event handler attributes will allow JavaScript encoding to mitigate against DOM based XSS. Please note, it is always dangerous design to put untrusted data directly into a command execution context.
+Setting the JavaScript `onclick` property is different from setting an HTML attribute. It expects a callback; assigning a primitive string [sets it to null](https://webidl.spec.whatwg.org/#LegacyTreatNonObjectAsNull), whether or not the string is encoded. This is type conversion, not a benefit of JavaScript encoding. Assign a trusted function, and keep untrusted values as data inside that function rather than compiling them as code.
 
-``` html
-<a id="bb" href="#"> Test Me</a>
+```html
+<a id="bb" href="#">Test Me</a>
 ```
 
-``` javascript
-//The following does NOT work because the event handler is being set to a string.
-//"alert(7)" is JavaScript encoded.
+```javascript
+// Neither string becomes a handler.
+document.getElementById("bb").onclick = "alert(7)";
 document.getElementById("bb").onclick = "\u0061\u006c\u0065\u0072\u0074\u0028\u0037\u0029";
 
-//The following does NOT work because the event handler is being set to a string.
-document.getElementById("bb").onmouseover = "testIt";
-
-//The following does NOT work because of the encoded "(" and ")".
-//"alert(77)" is JavaScript encoded.
-document.getElementById("bb").onmouseover = \u0061\u006c\u0065\u0072\u0074\u0028\u0037\u0037\u0029;
-
-//The following does NOT work because of the encoded ";".
-//"testIt;testIt" is JavaScript encoded.
-document.getElementById("bb").onmouseover = \u0074\u0065\u0073\u0074\u0049\u0074\u003b\u0074\u0065\u0073
-                                            \u0074\u0049\u0074;
-
-//The following DOES WORK because the encoded value is a valid variable name or function reference.
-//"testIt" is JavaScript encoded
-document.getElementById("bb").onmouseover = \u0074\u0065\u0073\u0074\u0049\u0074;
-
-function testIt() {
-   alert("I was called.");
-}
+// A trusted function is a handler.
+document.getElementById("bb").onclick = function () {
+    alert("I was called.");
+};
 ```
 
 There are other places in JavaScript where JavaScript encoding is accepted as valid executable code.
@@ -220,7 +201,7 @@ HTML encoded example to highlight a fundamental difference with JavaScript encod
 <&#x61; href=...>
 ```
 
-If HTML encoding followed the same semantics as JavaScript encoding. The line above could have possibly worked to render a link. This difference makes JavaScript encoding a less viable weapon in our fight against XSS.
+If HTML encoding followed the same semantics as JavaScript encoding, the line above could have possibly worked to render a link. This difference makes JavaScript encoding a less viable weapon in our fight against XSS.
 
 ## RULE \#4 - JavaScript Escape Before Inserting Untrusted Data into the CSS Attribute Subcontext within the Execution Context
 
@@ -230,7 +211,7 @@ From my experience, calling the `expression()` function from an execution contex
 
 ```javascript
 var ESAPI = require('node-esapi');
-document.body.style.backgroundImage = "url(<%=ESAPI.encoder().encodeForJS(ESAPI.encoder().encodeForURL(companyName))%>)";
+document.body.style.backgroundImage = "url(<%=ESAPI.encoder().encodeForJavascript(ESAPI.encoder().encodeForURL(companyName))%>)";
 ```
 
 ## RULE \#5 - URL Escape then JavaScript Escape Before Inserting Untrusted Data into URL Attribute Subcontext within the Execution Context
@@ -240,7 +221,7 @@ The logic which parses URLs in both execution and rendering contexts looks to be
 ```javascript
 var ESAPI = require('node-esapi');
 var x = document.createElement("a");
-x.setAttribute("href", '<%=ESAPI.encoder().encodeForJS(ESAPI.encoder().encodeForURL(userRelativePath))%>');
+x.setAttribute("href", '<%=ESAPI.encoder().encodeForJavascript(ESAPI.encoder().encodeForURL(userRelativePath))%>');
 var y = document.createTextElement("Click Me To Test");
 x.appendChild(y);
 document.body.appendChild(x);
@@ -336,7 +317,7 @@ The example that follows illustrates using closures to avoid double JavaScript e
  setTimeout((function(param) { return function() {
           customFunction(param);
         }
- })("<%=ESAPI.encoder().encodeForJS(untrustedData)%>"), y);
+ })("<%=ESAPI.encoder().encodeForJavascript(untrustedData)%>"), y);
 ```
 
 The other alternative is using N-levels of encoding.
@@ -348,7 +329,7 @@ If your code looked like the following, you would need to only double JavaScript
 ```javascript
 setTimeout("customFunction('<%=doubleJavaScriptEncodedData%>', y)");
 function customFunction (firstName, lastName)
-     alert("Hello" + firstName + " " + lastNam);
+     alert("Hello" + firstName + " " + lastName);
 }
 ```
 
@@ -380,7 +361,7 @@ Here are some examples of how they are used:
 ```javascript
 //server-side encoding
 var ESAPI = require('node-esapi');
-var input = "<%=ESAPI.encoder().encodeForJS(untrustedData)%>";
+var input = "<%=ESAPI.encoder().encodeForJavascript(untrustedData)%>";
 ```
 
 ```javascript
@@ -450,13 +431,16 @@ if (untrustedData === 'location') {
 }
 ```
 
-### GUIDELINE \#9 - Run your JavaScript in a ECMAScript 5 canopy or sandbox
+### GUIDELINE \#9 - Keep HTML sanitization separate from JavaScript execution
 
-Run your JavaScript in a ECMAScript 5 [canopy](https://github.com/jcoglan/canopy) or sandbox to make it harder for your JavaScript API to be compromised (Gareth Heyes and John Stevens).
+Use an HTML sanitizer such as [DOMPurify](https://github.com/cure53/DOMPurify#what-does-it-do) when the application must render untrusted markup; see the [HTML sanitization guidance](Cross_Site_Scripting_Prevention_Cheat_Sheet.md#html-sanitization). HTML sanitizers filter markup and do not provide a sandbox for executing arbitrary JavaScript. Do not pass untrusted code to [`eval()` or `Function()`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/eval#never_use_direct_eval!).
 
 ### GUIDELINE \#10 - Don't eval() JSON to convert it to native JavaScript objects
 
-Don't `eval()` JSON to convert it to native JavaScript objects. Instead use `JSON.toJSON()` and `JSON.parse()` (Chris Schmidt).
+Don't `eval()` JSON to convert it to native JavaScript objects. Use the built-in `JSON.parse()` to deserialize JSON into JavaScript values, and `JSON.stringify()` to serialize JavaScript values into JSON. `JSON.parse()` rejects anything that is not valid JSON, so it cannot execute attacker-supplied code the way `eval()` can.
+
+> [!WARNING]
+> `JSON.stringify()` is **not** an output-encoding function. Its output is valid JSON, but embedding it in HTML requires protection for the destination context. Prefer a separate response with `Content-Type: application/json`, parsed client-side with `JSON.parse()`. If JSON must be embedded in an inline script, use a serializer or encoder documented for that exact placement, protecting both JavaScript syntax and the [enclosing HTML script context](https://html.spec.whatwg.org/multipage/scripting.html#restrictions-for-contents-of-script-elements), including literal `</script` sequences. HTML entity encoding or JavaScript quote escaping alone is not sufficient for this placement. For other placements, follow the [context-specific XSS encoding rules](Cross_Site_Scripting_Prevention_Cheat_Sheet.md#output-encoding).
 
 ## Common Problems Associated with Mitigating DOM Based XSS
 
@@ -479,7 +463,7 @@ In the above example, untrusted data started in the rendering URL context (`href
 Because the data was introduced in JavaScript code and passed to a URL subcontext the appropriate server-side encoding would be the following:
 
 ```html
-<a href="javascript:myFunction('<%=ESAPI.encoder().encodeForJS(ESAPI.encoder().encodeForURL(untrustedData)) %>', 'test');">
+<a href="javascript:myFunction('<%=ESAPI.encoder().encodeForJavascript(ESAPI.encoder().encodeForURL(untrustedData)) %>', 'test');">
 Click Me</a>
  ...
 ```
@@ -488,7 +472,7 @@ Or if you were using ECMAScript 5 with an immutable JavaScript client-side encod
 
 ```html
 <!-- server side URL encoding has been removed.  Now only JavaScript encoding on server side. -->
-<a href="javascript:myFunction('<%=ESAPI.encoder().encodeForJS(untrustedData)%>', 'test');">Click Me</a>
+<a href="javascript:myFunction('<%=ESAPI.encoder().encodeForJavascript(untrustedData)%>', 'test');">Click Me</a>
  ...
 <script>
 Function myFunction (url,name) {
@@ -508,11 +492,11 @@ There are a number of open source encoding libraries out there:
 4. [Jtidy](http://jtidy.sourceforge.net/)
 5. Your company's custom implementation.
 
-Some work on a block list while others ignore important characters like "&lt;" and "&gt;".
+Some work on a denylist while others ignore important characters like "&lt;" and "&gt;".
 
 Java Encoder is an active project providing supports for HTML, CSS and JavaScript encoding.
 
-ESAPI is one of the few which works on an allow list and encodes all non-alphanumeric characters. It is important to use an encoding library that understands which characters can be used to exploit vulnerabilities in their respective contexts. Misconceptions abound related to the proper encoding that is required.
+ESAPI is one of the few which works on an allowlist and encodes all non-alphanumeric characters. It is important to use an encoding library that understands which characters can be used to exploit vulnerabilities in their respective contexts. Misconceptions abound related to the proper encoding that is required.
 
 ### Encoding Misconceptions
 
@@ -574,3 +558,8 @@ document.write(x);
 ```
 
 Semgrep rule to identify above dom xss [link](https://semgrep.dev/s/we30).
+
+## References
+
+- [MDN: innerHTML Security Considerations](https://developer.mozilla.org/en-US/docs/Web/API/Element/innerHTML#security_considerations)
+- [DOMPurify: HTML Sanitization](https://github.com/cure53/DOMPurify#what-does-it-do)

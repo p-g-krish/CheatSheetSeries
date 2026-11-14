@@ -10,7 +10,7 @@ Please notice that due to the difference in implementation between different fra
 
 Transport confidentiality protects against eavesdropping and man-in-the-middle attacks against web service communications to/from the server.
 
-**Rule**: All communication with and between web services containing sensitive features, an authenticated session, or transfer of sensitive data must be encrypted using well-configured [TLS](https://en.wikipedia.org/wiki/Transport_Layer_Security). This is recommended even if the messages themselves are encrypted because [TLS](https://en.wikipedia.org/wiki/Transport_Layer_Security) provides numerous benefits beyond traffic confidentiality including integrity protection, replay defenses, and server authentication. For more information on how to do this properly see the [Transport Layer Protection Cheat Sheet](Transport_Layer_Protection_Cheat_Sheet.md).
+**Rule**: All communication with and between web services containing sensitive features, an authenticated session, or transfer of sensitive data must be encrypted using well-configured [TLS](https://en.wikipedia.org/wiki/Transport_Layer_Security). This is recommended even if the messages themselves are encrypted because [TLS](https://en.wikipedia.org/wiki/Transport_Layer_Security) provides numerous benefits beyond traffic confidentiality including integrity protection, replay defenses, and server authentication. For more information on how to do this properly see the [Transport Layer Security Cheat Sheet](Transport_Layer_Security_Cheat_Sheet.md).
 
 ## Server Authentication
 
@@ -20,9 +20,9 @@ Transport confidentiality protects against eavesdropping and man-in-the-middle a
 
 User authentication verifies the identity of the user or the system trying to connect to the service. Such authentication is usually a function of the container of the web service.
 
-**Rule**: If used, Basic Authentication must be conducted over [TLS](https://en.wikipedia.org/wiki/Transport_Layer_Security), but Basic Authentication is not recommended.
+**Rule**: If used, Basic Authentication must be conducted over [TLS](https://en.wikipedia.org/wiki/Transport_Layer_Security), but Basic Authentication is not recommended because it discloses secrets in plain text (base64 encoded) in HTTP Headers.
 
-**Rule**: Client Certificate Authentication using [TLS](https://en.wikipedia.org/wiki/Transport_Layer_Security) is a strong form of authentication that is recommended.
+**Rule**: Client Certificate Authentication using [Mutual-TLS](https://en.wikipedia.org/wiki/Transport_Layer_Security) is a common form of authentication that is recommended where appropriate. See: [Authentication Cheat Sheet](Authentication_Cheat_Sheet.md).
 
 ## Transport Encoding
 
@@ -50,7 +50,7 @@ Data elements meant to be kept confidential must be encrypted using a strong enc
 
 Web services need to authorize web service clients the same way web applications authorize users. A web service needs to make sure a web service client is authorized to perform a certain action (coarse-grained) on the requested data (fine-grained).
 
-**Rule**: A web service should authorize its clients whether they have access to the method in question. Following authentication, the web service should check the privileges of the requesting entity whether they have access to the requested resource. This should be done on every request.
+**Rule**: A web service should authorize its clients whether they have access to the method in question. Following an authentication challenge, the web service should check the privileges of the requesting entity whether they have access to the requested resource. This should be done on every request, and a challenge-response Authorization mechanism added to sensitive resources like password changes, primary contact details such as email, physical address, payment or delivery instructions.
 
 **Rule**: Ensure access to administration and management functions within the Web Service Application is limited to web service administrators. Ideally, any administrative capabilities would be in an application that is completely separate from the web services being managed by these capabilities, thus completely separating normal users from these sensitive functions.
 
@@ -70,7 +70,7 @@ Schema validation enforces constraints and syntax defined by the schema.
 
 - Validation against malformed XML entities.
 - Validation against [XML Bomb attacks](https://en.wikipedia.org/wiki/Billion_laughs_attack).
-- Validating inputs using a strong allow list.
+- Validating inputs using a strong allowlist.
 - Validating against [external entity attacks](https://owasp.org/www-community/vulnerabilities/XML_External_Entity_%28XXE%29_Processing).
 
 ## Output Encoding
@@ -109,7 +109,7 @@ During regular operation, web services require computational power such as CPU c
 
 Throughput represents the number of web service requests served during a specific amount of time.
 
-**Rule**: Configuration should be optimized for maximum message throughput to avoid running into DoS-like situations.
+**Rule**: Enforce request-rate and execution-time limits based on tested service capacity and the cost of each operation. Tune stricter limits for expensive operations, following [OWASP's resource-consumption guidance](https://api-security.owasp.org/editions/2023/en/0xa4-unrestricted-resource-consumption/#how-to-prevent). Maximizing throughput alone does not prevent resource exhaustion.
 
 ### XML Denial of Service Protection
 
@@ -121,10 +121,15 @@ XML Denial of Service is probably the most serious attack against web services. 
 
 **Rule**: Protection against [XML entity expansion](https://www.ws-attacks.org/XML_Entity_Expansion).
 
-**Rule**: Validating against overlong element names. If you are working with [SOAP](https://en.wikipedia.org/wiki/SOAP)-based Web Services, the element names are those [SOAP](https://en.wikipedia.org/wiki/SOAP) Actions.
+**Rule**: Reject XML element names that exceed configured length limits. SOAP action identifiers are separate from XML element names; for example, the [SOAP 1.2 Action feature](https://www.w3.org/TR/soap12-part2/#ActionFeature) uses a URI value that can guide message dispatch or routing.
 
 This protection should be provided by your XML parser/schema validator. To verify, build test cases to make sure your parser to resistant to these types of attacks.
 
 ## Endpoint Security Profile
 
-**Rule**: Web services must be compliant with [Web Services-Interoperability (WS-I)](https://en.wikipedia.org/wiki/Web_Services_Interoperability) Basic Profile at minimum.
+**Rule**: Treat Web Services Interoperability (WS-I) Basic Profile conformance as an interoperability requirement, not a security baseline. Its [security section](https://docs.oasis-open.org/ws-brsp/BasicProfile/v1.2/BasicProfile-v1.2.html#_Toc392058316) permits conformant services without security countermeasures. Independently enforce the transport security, authentication, authorization, and resource limits described above.
+
+## References
+
+- [NIST SP 800-95: Guide to Secure Web Services](https://csrc.nist.gov/pubs/sp/800/95/final)
+- [W3C XML Encryption Syntax and Processing Version 1.1](https://www.w3.org/TR/xmlenc-core1/)
